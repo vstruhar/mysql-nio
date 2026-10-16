@@ -158,10 +158,18 @@ final class MySQLConnectionHandler: ChannelDuplexHandler {
         let hash: ByteBuffer
         switch authPluginName {
         case "caching_sha2_password":
-            let seed = authPluginData
-            hash = xor(sha256(password), sha256(sha256(sha256(password)), seed))
-            saveSeed = seed.getBytes(at: 0, length: seed.readableBytes) ?? []
-            self.logger.trace("Generated scrambled hash for caching_sha2_password")
+            if let passwordValue = passwordInput, !passwordValue.isEmpty {
+                let seed = authPluginData
+                hash = xor(sha256(password), sha256(sha256(sha256(password)), seed))
+                saveSeed = seed.getBytes(at: 0, length: seed.readableBytes) ?? []
+                self.logger.trace("Generated scrambled hash for caching_sha2_password")
+            } else {
+                // Passwordless account: send an empty auth response, like the
+                // official clients. Scrambling an empty password is always
+                // rejected by the server for such accounts.
+                hash = .init()
+                self.logger.trace("Generated empty response for caching_sha2_password with empty password input")
+            }
         case "mysql_native_password":
             if let passwordValue = passwordInput, !passwordValue.isEmpty {
                 var copy = authPluginData
